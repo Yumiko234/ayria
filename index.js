@@ -285,8 +285,31 @@ client.on('guildMemberRemove', async member => {
   await sendLog(member.guild, LOG_TYPES.MEMBER, embed);
 });
 
-// ─── Mise à jour membre (timeout expiré + modification de rôles) ──────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
+
+//Message boost le serveur
+  if (!oldMember.premiumSince && newMember.premiumSince) {
+    const guild = newMember.guild;
+    
+    // ID du salon où tu veux envoyer les remerciements (Remplace par ton ID de salon)
+    const thankYouChannelId = '1519466409338470571'; 
+    const channel = guild.channels.cache.get(thankYouChannelId);
+
+    if (channel) {
+      const boostEmbed = new EmbedBuilder()
+        .setTitle('✨ Un nouveau Boost ! ✨')
+        .setDescription(`Un immense merci à ${newMember} qui vient de booster le serveur ! 💖`)
+        .setColor('#ff73fa') // Couleur rose de Discord Boost
+        .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+
+      await channel.send({ content: `🎉 Félicitations ${newMember} !`, embeds: [boostEmbed] }).catch(err => {
+        console.error(`Impossible d'envoyer le message de boost dans le salon :`, err.message);
+      });
+    }
+  }
+
+// ─── Mise à jour membre (timeout expiré + modification de rôles) ──────────────
 
   // ── Expiration timeout automatique ────────────────────────────────────────
   if (oldMember.isCommunicationDisabled() && !newMember.isCommunicationDisabled()) {

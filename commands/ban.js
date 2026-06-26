@@ -78,10 +78,15 @@ module.exports = {
       if (!durationMatch) {
         return interaction.editReply({ content: 'Format de durée invalide. Utilisez ex. : 1h, 1d, 1w.' });
       }
-      const [, value, unit] = durationMatch;
+      
+      // ✨ CORRECTION : Force la conversion de la valeur textuelle en Nombre Entier
+      const value = parseInt(durationMatch[1], 10);
+      const unit  = durationMatch[2];
+
       if (unit === 'h') durationMs = value * 3600000;
       else if (unit === 'd') durationMs = value * 86400000;
       else if (unit === 'w') durationMs = value * 604800000;
+      
       isTempBan = true;
       if (unit === 'h') dureeText = `${value} heure${value > 1 ? 's' : ''}`;
       else if (unit === 'd') dureeText = `${value} jour${value > 1 ? 's' : ''}`;
@@ -136,23 +141,14 @@ module.exports = {
       await interaction.editReply(reply);
 
       // Débannissement automatique si temporaire
-      if (isTempBan) {
+      if (isTempBan && durationMs) {
         setTimeout(async () => {
           try {
-            await interaction.guild.members.unban(user);
+            // Vérifier d'abord si le membre est toujours sur la liste des bannis du serveur
+            const bans = await interaction.guild.bans.fetch().catch(() => null);
+            if (bans && !bans.has(user.id)) return; // S'il a déjà été unban manuellement, on s'arrête.
 
-            const unbanEmbed = new EmbedBuilder()
-              .setTitle('🔓 Débannissement Automatique')
-              .setColor('#00ff00')
-              .addFields(
-                { name: 'Serveur', value: interaction.guild.name,       inline: true },
-                { name: 'Raison',  value: 'Expiration automatique',     inline: true },
-                { name: 'Date',    value: new Date().toISOString(),      inline: true }
-              )
-              .setTimestamp();
-
-            try { await user.send({ embeds: [unbanEmbed] }); }
-            catch { console.error(`Impossible d'envoyer un DM d'expiration à ${user.tag}`); }
+            await interaction.guild.members.unban(user, 'Expiration automatique du tempban');
 
             const { error: unbanError } = await db
               .from('sanctions')
@@ -166,8 +162,10 @@ module.exports = {
               });
 
             if (unbanError) console.error('Supabase (unban auto) :', unbanError.message);
+            
             const logUnban = buildSanctionEmbed('unban', user, null, 'Expiration automatique');
             await sendLog(interaction.guild, LOG_TYPES.SANCTION, logUnban);
+            console.log(`[Tempban] ${user.tag} a été débanni automatiquement.`);
           } catch (err) {
             console.error(`Erreur lors du débannissement automatique de ${user.tag} :`, err);
           }
