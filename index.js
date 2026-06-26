@@ -12,6 +12,19 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+// ———— EXPRESS
+const express = require('express');
+const app = express();
+const PORT = process.envPORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send("Le bot AYRIA est ligne !");
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Serveur activé sur le port ${PORT}`);
+});
+
 // ─── Modules internes ─────────────────────────────────────────────────────────
 const {
   LOG_TYPES,
