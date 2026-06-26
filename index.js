@@ -15,7 +15,8 @@ const supabase = createClient(
 // ———— EXPRESS
 const express = require('express');
 const app = express();
-const PORT = process.envPORT || 3000;
+// ✨ CORRECTION : process.env.PORT (point manquant)
+const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send("Le bot AYRIA est ligne !");
@@ -45,7 +46,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers, // ✨ Requis pour intercepter les arrivées et le kick automatique
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
   ],
 });
@@ -122,6 +123,70 @@ client.once('ready', () => {
     activities: [{ name: 'Mon créateur @yumiko0001', type: 3 }],
     status: 'online',
   });
+
+  // ✨ NOUVEAU : Job périodique pour les tempbans (toutes les 60 secondes)
+  // Prérequis : colonne `expires_at TIMESTAMPTZ` dans la table `sanctions`
+  setInterval(async () => {
+    const now = new Date().toISOString();
+
+    const { data: expiredBans, error } = await supabase
+      .from('sanctions')
+      .select('*')
+      .eq('type', 'ban')
+      .lte('expires_at', now)
+      .not('expires_at', 'is', null);
+
+    if (error) {
+      console.error('[Tempban Job] Erreur Supabase :', error.message);
+      return;
+    }
+
+    for (const ban of expiredBans ?? []) {
+      const guild = client.guilds.cache.get(ban.guild_id);
+      if (!guild) continue;
+
+      try {
+        // Vérifier que l'utilisateur est bien encore banni avant d'unban
+        const banEntry = await guild.bans.fetch(ban.user_id).catch(() => null);
+        if (!banEntry) {
+          // Déjà unban manuellement → on nettoie juste l'expires_at
+          await supabase
+            .from('sanctions')
+            .update({ expires_at: null })
+            .eq('id', ban.id);
+          continue;
+        }
+
+        await guild.members.unban(ban.user_id, 'Expiration automatique du tempban');
+
+        const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('./events/logManager');
+
+        await supabase.from('sanctions').insert({
+          user_id:      ban.user_id,
+          guild_id:     ban.guild_id,
+          type:         'unban',
+          raison:       'Expiration automatique',
+          date:         now,
+          moderator_id: null,
+        });
+
+        // Marquer le ban comme traité
+        await supabase
+          .from('sanctions')
+          .update({ expires_at: null })
+          .eq('id', ban.id);
+
+        const user = await client.users.fetch(ban.user_id).catch(() => null);
+        if (user) {
+          const logEmbed = buildSanctionEmbed('unban', user, null, 'Expiration automatique');
+          await sendLog(guild, LOG_TYPES.SANCTION, logEmbed);
+          console.log(`[Tempban Job] ${user.tag} débanni automatiquement.`);
+        }
+      } catch (err) {
+        console.error(`[Tempban Job] Erreur pour user ${ban.user_id} :`, err.message);
+      }
+    }
+  }, 60_000);
 });
 
 // ─── Messages : cooldown + XP ─────────────────────────────────────────────────
@@ -155,7 +220,7 @@ client.on('messageCreate', async message => {
             type:         'kick',
             raison:       raison,
             date:         date,
-            moderator_id: 'Automod', // Marqué comme sanctionné par le bot lui-même
+            moderator_id: 'Automod',
           });
 
         if (dbError) console.error('[Anti-Pub] Erreur insertion Supabase :', dbError.message);
@@ -171,7 +236,7 @@ client.on('messageCreate', async message => {
           setTimeout(() => warnMsg.delete().catch(() => {}), 6000);
         }
         
-        return; // Arrêt complet pour ne pas traiter le cooldown ni distribuer d'XP
+        return;
       }
     }
   }
@@ -287,31 +352,33 @@ client.on('guildMemberRemove', async member => {
 
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
 
-//Message boost le serveur
+  // ─── Message de remerciement pour les boosts ─────────────────────────────
+  // ✨ CORRECTION : On vérifie que c'est un nouveau boost (pas juste un renouvellement)
   if (!oldMember.premiumSince && newMember.premiumSince) {
     const guild = newMember.guild;
-    
-    // ID du salon où tu veux envoyer les remerciements (Remplace par ton ID de salon)
-    const thankYouChannelId = '1519466409338470571'; 
+    const thankYouChannelId = '1519466409338470571';
     const channel = guild.channels.cache.get(thankYouChannelId);
 
     if (channel) {
       const boostEmbed = new EmbedBuilder()
-        .setTitle('✨ Un nouveau Boost ! ✨')
-        .setDescription(`Un immense merci à ${newMember} qui vient de booster le serveur ! 💖`)
-        .setColor('#ff73fa') // Couleur rose de Discord Boost
+        .setTitle('✨ Nouveau Boost ! ✨')
+        .setDescription(
+          `Un immense merci à ${newMember} pour avoir boosté le serveur ! 💖\n` +
+          `Le serveur est désormais au niveau **${guild.premiumTier}** avec **${guild.premiumSubscriptionCount}** boost${guild.premiumSubscriptionCount > 1 ? 's' : ''} !`
+        )
+        .setColor('#ff73fa')
         .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
+        .setFooter({ text: `Merci pour ton soutien, ${newMember.user.username} ! 🌸` })
         .setTimestamp();
 
-      await channel.send({ content: `🎉 Félicitations ${newMember} !`, embeds: [boostEmbed] }).catch(err => {
-        console.error(`Impossible d'envoyer le message de boost dans le salon :`, err.message);
+      // ✨ CORRECTION : Plus de `content` redondant avec la mention déjà dans l'embed
+      await channel.send({ embeds: [boostEmbed] }).catch(err => {
+        console.error(`[Boost] Impossible d'envoyer le message dans le salon :`, err.message);
       });
     }
   }
 
-// ─── Mise à jour membre (timeout expiré + modification de rôles) ──────────────
-
-  // ── Expiration timeout automatique ────────────────────────────────────────
+  // ─── Expiration timeout automatique ──────────────────────────────────────
   if (oldMember.isCommunicationDisabled() && !newMember.isCommunicationDisabled()) {
     const user  = newMember.user;
     const guild = newMember.guild;

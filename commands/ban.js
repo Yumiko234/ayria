@@ -72,6 +72,7 @@ module.exports = {
     let durationMs = null;
     let isTempBan  = false;
     let dureeText  = null;
+    let expiresAt  = null; // ✨ NOUVEAU : Date d'expiration pour le job périodique
 
     if (dureeInput) {
       const durationMatch = dureeInput.match(/^(\d+)([hdw])$/);
@@ -79,7 +80,6 @@ module.exports = {
         return interaction.editReply({ content: 'Format de durée invalide. Utilisez ex. : 1h, 1d, 1w.' });
       }
       
-      // ✨ CORRECTION : Force la conversion de la valeur textuelle en Nombre Entier
       const value = parseInt(durationMatch[1], 10);
       const unit  = durationMatch[2];
 
@@ -88,6 +88,8 @@ module.exports = {
       else if (unit === 'w') durationMs = value * 604800000;
       
       isTempBan = true;
+      expiresAt = new Date(Date.now() + durationMs).toISOString(); // ✨ NOUVEAU
+
       if (unit === 'h') dureeText = `${value} heure${value > 1 ? 's' : ''}`;
       else if (unit === 'd') dureeText = `${value} jour${value > 1 ? 's' : ''}`;
       else if (unit === 'w') dureeText = `${value} semaine${value > 1 ? 's' : ''}`;
@@ -113,7 +115,8 @@ module.exports = {
       // Ban Discord
       await interaction.guild.members.ban(user, { reason: raison, deleteMessageSeconds: 0 });
 
-      // INSERT Supabase
+      // ✨ CORRECTION : On stocke expires_at en base pour que le job périodique gère le unban
+      //    Plus de setTimeout() ici → survit aux redémarrages du bot
       const { error } = await db
         .from('sanctions')
         .insert({
@@ -124,6 +127,7 @@ module.exports = {
           date,
           moderator_id: interaction.user.id,
           duration:     dureeInput ?? null,
+          expires_at:   expiresAt,  // ✨ null si permanent, timestamp ISO si temporaire
         });
 
       const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
@@ -140,37 +144,9 @@ module.exports = {
         : `🚫 Le membre **${user.tag}** a été banni définitivement pour le motif : **${raison}**`;
       await interaction.editReply(reply);
 
-      // Débannissement automatique si temporaire
-      if (isTempBan && durationMs) {
-        setTimeout(async () => {
-          try {
-            // Vérifier d'abord si le membre est toujours sur la liste des bannis du serveur
-            const bans = await interaction.guild.bans.fetch().catch(() => null);
-            if (bans && !bans.has(user.id)) return; // S'il a déjà été unban manuellement, on s'arrête.
+      // ✨ Le débannissement automatique est désormais géré par le job setInterval()
+      //    dans index.js (ready event) → plus aucun setTimeout ici
 
-            await interaction.guild.members.unban(user, 'Expiration automatique du tempban');
-
-            const { error: unbanError } = await db
-              .from('sanctions')
-              .insert({
-                user_id:      user.id,
-                guild_id:     interaction.guild.id,
-                type:         'unban',
-                raison:       'Expiration automatique',
-                date:         new Date().toISOString(),
-                moderator_id: null,
-              });
-
-            if (unbanError) console.error('Supabase (unban auto) :', unbanError.message);
-            
-            const logUnban = buildSanctionEmbed('unban', user, null, 'Expiration automatique');
-            await sendLog(interaction.guild, LOG_TYPES.SANCTION, logUnban);
-            console.log(`[Tempban] ${user.tag} a été débanni automatiquement.`);
-          } catch (err) {
-            console.error(`Erreur lors du débannissement automatique de ${user.tag} :`, err);
-          }
-        }, durationMs);
-      }
     } catch (err) {
       console.error('Erreur lors du bannissement :', err);
       interaction.editReply({ content: 'Une erreur est survenue lors du bannissement.' });
