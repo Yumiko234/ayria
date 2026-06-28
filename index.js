@@ -4,7 +4,6 @@ const { REST }         = require('@discordjs/rest');
 const { Routes }       = require('discord-api-types/v10');
 const { createClient } = require('@supabase/supabase-js');
 const fs               = require('fs');
-const https            = require('https');
 require('dotenv').config({ path: './login.env' });
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
@@ -40,6 +39,7 @@ const {
 } = require('./events/logManager');
 
 const { handleMessage } = require('./events/xpManager');
+const { handleCounting } = require('./events/countingManager');
 
 // ─── Client Discord ───────────────────────────────────────────────────────────
 const client = new Client({
@@ -194,6 +194,10 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  // ── Counting ────────────────────────────────────────────────────────────────
+  await handleCounting(message, supabase);
+  if (message.author.bot) return; // handleCounting peut supprimer le msg, on re-vérifie
 
   const channelId = message.channel.id;
   const userId    = message.author.id;
@@ -462,8 +466,6 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
-
-const RENDER_URL = 'https://ayria-fb7j.onerender.com'
 
 setInterval(() => {
   https.get(RENDER_URL, (res) => {
