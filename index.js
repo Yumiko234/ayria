@@ -4,6 +4,7 @@ const { REST }         = require('@discordjs/rest');
 const { Routes }       = require('discord-api-types/v10');
 const { createClient } = require('@supabase/supabase-js');
 const fs               = require('fs');
+const https            = require('https');
 require('dotenv').config({ path: './login.env' });
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
@@ -461,5 +462,17 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
+const RENDER_URL = 'https://ayria-fb7j.onerender.com'
+
+setInterval(() => {
+  https.get(RENDER_URL, (res) => {
+    console.log(`[Auto-Ping] Statut reçu : ${res.statusCode}`);
+  }).on('error', (err) => {
+    console.error(`[Auto-Ping] Erreur : ${err.message}`);
+  });
+},
+10 * 60 * 1000
+);
 
 client.login(process.env.TOKEN);
