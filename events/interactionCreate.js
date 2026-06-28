@@ -1,4 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { sendLog, buildTicketEmbed, LOG_TYPES } = require('./logManager');
 
 module.exports = {
   name: 'interactionCreate',
@@ -130,6 +131,11 @@ module.exports = {
       );
 
       await ticketChannel.send({ embeds: [embed], components: [row] });
+
+      // 📋 Log — ticket ouvert
+      const openLogEmbed = buildTicketEmbed('open', ticketChannel, user, linearId);
+      await sendLog(guild, LOG_TYPES.TICKET, openLogEmbed);
+
       return interaction.editReply(`✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>`);
     }
 
@@ -244,6 +250,11 @@ module.exports = {
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
       await channel.send({ content: '🔒 **Ticket fermé et archivé.** La commande `/ticket-transcript` est désormais accessible ici.' });
+
+      // 📋 Log — ticket fermé
+      const ticketNumber = channel.name.split('-').pop();
+      const closeLogEmbed = buildTicketEmbed('close', channel, user, ticketNumber);
+      await sendLog(guild, LOG_TYPES.TICKET, closeLogEmbed);
     }
 
     // 🔓 D. RÉOUVERTURE D'UN TICKET ARCHIVÉ

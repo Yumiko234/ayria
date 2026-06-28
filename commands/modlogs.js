@@ -14,6 +14,13 @@ module.exports = {
     const user = interaction.options.getUser('utilisateur');
     const db   = interaction.client.db;
 
+    // Récupère le display name du membre sur le serveur
+    let displayName = user.displayName;
+    try {
+      const member = await interaction.guild.members.fetch(user.id);
+      displayName  = member.displayName;
+    } catch { /* absent du serveur */ }
+
     const { data: rows, error } = await db
       .from('sanctions')
       .select('*')
@@ -23,28 +30,49 @@ module.exports = {
 
     if (error) {
       console.error('Supabase (modlogs) :', error.message);
-      return interaction.reply({ 
-        content: "Erreur lors de la récupération de l'historique.", 
+      return interaction.reply({
+        content: "Erreur lors de la récupération de l'historique.",
         flags: [MessageFlags.Ephemeral]
       });
     }
 
     if (!rows || rows.length === 0) {
-      return interaction.reply({ 
-        content: `Aucune sanction trouvée pour ${user.tag}.`, 
+      return interaction.reply({
+        content: `Aucune sanction trouvée pour **${displayName}**.`,
         flags: [MessageFlags.Ephemeral]
       });
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle(`Historique des sanctions pour ${user.tag}`)
-      .setColor('#ff0000')
-      .setDescription(
-        rows.map(row =>
-          `**ID ${row.id}** | \`${row.type}\` | ${row.raison} | <t:${Math.floor(new Date(row.date).getTime() / 1000)}:d> | <@${row.moderator_id}>`
-        ).join('\n')
-      );
+    // Chaque sanction sur deux lignes courtes pour que les mentions passent bien
+    const lines = rows.map(row => {
+      const timestamp = Math.floor(new Date(row.date).getTime() / 1000);
+      const mod       = row.moderator_id ? `<@${row.moderator_id}>` : 'Automatique';
+      return `**[#${row.id}] \`${row.type}\`** — <t:${timestamp}:d> par ${mod}\n↳ ${row.raison}`;
+    });
 
-    await interaction.reply({ embeds: [embed] });
+    // Discord limite la description à 4096 chars — on pagine si nécessaire
+    const MAX_LENGTH = 4000;
+    const pages = [];
+    let current  = '';
+
+    for (const line of lines) {
+      if ((current + '\n\n' + line).length > MAX_LENGTH) {
+        pages.push(current);
+        current = line;
+      } else {
+        current = current ? current + '\n\n' + line : line;
+      }
+    }
+    if (current) pages.push(current);
+
+    const embeds = pages.map((page, i) =>
+      new EmbedBuilder()
+        .setTitle(i === 0 ? `📋 Sanctions de ${displayName} (${rows.length})` : `📋 Sanctions de ${displayName} (suite)`)
+        .setColor('#ff0000')
+        .setDescription(page)
+        .setFooter({ text: `Utilisateur ID : ${user.id}` })
+    );
+
+    await interaction.reply({ embeds: embeds.slice(0, 10) }); // max 10 embeds par message
   },
 };
