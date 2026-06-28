@@ -310,6 +310,14 @@ client.on('messageDelete', async message => {
   if (message.author?.bot) return;
   if (!message.content && message.attachments.size === 0) return;
 
+  // Ignore le salon de counting
+  const { data: counting } = await supabase
+    .from('counting')
+    .select('channel_id')
+    .eq('guild_id', message.guild.id)
+    .single();
+  if (counting?.channel_id === message.channel.id) return;
+
   const embed = buildMessageDeleteEmbed(message);
   await sendLog(message.guild, LOG_TYPES.MESSAGE_DEL, embed);
 });
@@ -319,6 +327,14 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
   if (!newMessage.guild) return;
   if (newMessage.author?.bot) return;
   if (oldMessage.content === newMessage.content) return;
+
+  // Ignore le salon de counting
+  const { data: counting } = await supabase
+    .from('counting')
+    .select('channel_id')
+    .eq('guild_id', newMessage.guild.id)
+    .single();
+  if (counting?.channel_id === newMessage.channel.id) return;
 
   const embed = buildMessageEditEmbed(oldMessage, newMessage);
   await sendLog(newMessage.guild, LOG_TYPES.MESSAGE_EDI, embed);
