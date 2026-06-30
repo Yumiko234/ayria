@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { sendLog, buildTicketEmbed, LOG_TYPES } = require('../events/logManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -44,6 +45,11 @@ module.exports = {
         content: '🗑️ Le ticket a été marqué comme supprimé en BDD. Suppression du salon en cours...', 
         flags: [MessageFlags.Ephemeral] 
       });
+
+      // 📋 Log — ticket supprimé (avant suppression effective du salon)
+      const ticketNumber = channel.name.split('-').pop();
+      const deleteLogEmbed = buildTicketEmbed('delete', channel, interaction.user, ticketNumber);
+      await sendLog(interaction.guild, LOG_TYPES.TICKET, deleteLogEmbed);
 
       // 🕒 Petit délai de 2 secondes pour que l'utilisateur voit le message de confirmation, puis suppression du salon
       setTimeout(async () => {

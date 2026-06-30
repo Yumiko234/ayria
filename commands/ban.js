@@ -117,7 +117,7 @@ module.exports = {
 
       // ✨ CORRECTION : On stocke expires_at en base pour que le job périodique gère le unban
       //    Plus de setTimeout() ici → survit aux redémarrages du bot
-      const { error } = await db
+      const { data: insertedSanction, error } = await db
         .from('sanctions')
         .insert({
           user_id:      user.id,
@@ -128,10 +128,12 @@ module.exports = {
           moderator_id: interaction.user.id,
           duration:     dureeInput ?? null,
           expires_at:   expiresAt,  // ✨ null si permanent, timestamp ISO si temporaire
-        });
+        })
+        .select()
+        .single();
 
       const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
-      const logEmbed = buildSanctionEmbed('ban', user, interaction.user, raison, { duration: dureeText });
+      const logEmbed = buildSanctionEmbed('ban', user, interaction.user, raison, { duration: dureeText, caseId: insertedSanction?.id });
       await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
 
       if (error) {

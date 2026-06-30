@@ -109,7 +109,7 @@ module.exports = {
       try { await user.send({ embeds: [dmEmbed] }); }
       catch { console.error(`Impossible d'envoyer un DM à ${user.tag}`); }
 
-      const { error } = await db
+      const { data: insertedSanction, error } = await db
         .from('sanctions')
         .insert({
           user_id:      user.id,
@@ -119,10 +119,12 @@ module.exports = {
           date,
           moderator_id: interaction.user.id,
           duration:     dureeInput,
-        });
+        })
+        .select()
+        .single();
 
       const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
-      const logEmbed = buildSanctionEmbed('mute', user, interaction.user, raison, { duration: dureeText });
+      const logEmbed = buildSanctionEmbed('mute', user, interaction.user, raison, { duration: dureeText, caseId: insertedSanction?.id });
       await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
 
       if (error) {

@@ -162,14 +162,14 @@ client.once('ready', () => {
 
         const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('./events/logManager');
 
-        await supabase.from('sanctions').insert({
+        const { data: insertedSanction } = await supabase.from('sanctions').insert({
           user_id:      ban.user_id,
           guild_id:     ban.guild_id,
           type:         'unban',
           raison:       'Expiration automatique',
           date:         now,
           moderator_id: null,
-        });
+        }).select().single();
 
         // Marquer le ban comme traité
         await supabase
@@ -179,7 +179,7 @@ client.once('ready', () => {
 
         const user = await client.users.fetch(ban.user_id).catch(() => null);
         if (user) {
-          const logEmbed = buildSanctionEmbed('unban', user, null, 'Expiration automatique');
+          const logEmbed = buildSanctionEmbed('unban', user, null, 'Expiration automatique', { caseId: insertedSanction?.id });
           await sendLog(guild, LOG_TYPES.SANCTION, logEmbed);
           console.log(`[Tempban Job] ${user.tag} débanni automatiquement.`);
         }
@@ -216,8 +216,25 @@ client.on('messageCreate', async message => {
         const date = new Date().toISOString();
         const raison = "Envoi de lien d'invitation Discord externe (Anti-Pub)";
 
-        // 2. Insertion automatique du Warn dans Supabase
-        const { error: dbError } = await supabase
+        // 2. Expulsion effective du membre (le type 'kick' doit correspondre à une vraie action)
+        const member = message.member;
+        const canKick = member.kickable && !member.permissions.has(PermissionFlagsBits.ManageMessages);
+
+        if (canKick) {
+          try { await message.author.send(`⚠️ Vous avez été expulsé de **${message.guild.name}** pour : ${raison}`); }
+          catch { /* DMs fermés, on ignore */ }
+
+          try {
+            await member.kick(raison);
+          } catch (kickError) {
+            console.error('[Anti-Pub] Impossible d\'expulser le membre :', kickError.message);
+          }
+        } else {
+          console.warn(`[Anti-Pub] Impossible d'expulser ${message.author.tag} (permissions/hiérarchie insuffisantes).`);
+        }
+
+        // 3. Insertion automatique du Kick dans Supabase
+        const { data: insertedSanction, error: dbError } = await supabase
           .from('sanctions')
           .insert({
             user_id:      userId,
@@ -225,17 +242,19 @@ client.on('messageCreate', async message => {
             type:         'kick',
             raison:       raison,
             date:         date,
-            moderator_id: 'Automod',
-          });
+            moderator_id: null,
+          })
+          .select()
+          .single();
 
         if (dbError) console.error('[Anti-Pub] Erreur insertion Supabase :', dbError.message);
 
-        // 3. Envoi du log via ton logManager
-        const logEmbed = buildSanctionEmbed('kick', message.author, client.user, raison);
+        // 4. Envoi du log via ton logManager
+        const logEmbed = buildSanctionEmbed('kick', message.author, null, raison, { caseId: insertedSanction?.id });
         await sendLog(message.guild, LOG_TYPES.SANCTION, logEmbed);
 
-        // 4. Message d'avertissement temporaire dans le salon
-        const warnMsg = await message.channel.send(`⚠️ ${message.author}, les invitations Discord externes sont strictement interdites. Un **warn** a été ajouté à votre dossier.`).catch(() => null);
+        // 5. Message d'avertissement temporaire dans le salon
+        const warnMsg = await message.channel.send(`⚠️ ${message.author}, les invitations Discord externes sont strictement interdites. Le membre a été **expulsé** du serveur.`).catch(() => null);
         
         if (warnMsg) {
           setTimeout(() => warnMsg.delete().catch(() => {}), 6000);
@@ -438,7 +457,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     try { await user.send({ embeds: [dmEmbed] }); }
     catch { console.error(`Impossible d'envoyer un DM d'expiration à ${user.tag}`); }
 
-    const { error } = await supabase
+    const { data: insertedSanction, error } = await supabase
       .from('sanctions')
       .insert({
         user_id:      user.id,
@@ -447,11 +466,13 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         raison:       'Expiration automatique',
         date,
         moderator_id: null,
-      });
+      })
+      .select()
+      .single();
 
     if (error) console.error('Supabase (unmute auto) :', error.message);
 
-    const logEmbed = buildSanctionEmbed('unmute', user, null, 'Expiration automatique');
+    const logEmbed = buildSanctionEmbed('unmute', user, null, 'Expiration automatique', { caseId: insertedSanction?.id });
     await sendLog(guild, LOG_TYPES.SANCTION, logEmbed);
   }
 

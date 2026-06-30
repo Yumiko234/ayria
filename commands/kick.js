@@ -83,7 +83,7 @@ module.exports = {
 
       await member.kick(raison);
 
-      const { error } = await db
+      const { data: insertedSanction, error } = await db
         .from('sanctions')
         .insert({
           user_id:      user.id,
@@ -92,10 +92,12 @@ module.exports = {
           raison,
           date,
           moderator_id: interaction.user.id,
-        });
+        })
+        .select()
+        .single();
 
       const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
-      const logEmbed = buildSanctionEmbed('kick', user, interaction.user, raison);
+      const logEmbed = buildSanctionEmbed('kick', user, interaction.user, raison, { caseId: insertedSanction?.id });
       await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
 
       if (error) {

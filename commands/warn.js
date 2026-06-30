@@ -55,7 +55,7 @@ module.exports = {
       .setTimestamp();
 
     // ─── INSERT Supabase ─────────────────────────────────────────────────────
-    const { error } = await db
+    const { data: insertedSanction, error } = await db
       .from('sanctions')
       .insert({
         user_id:      user.id,
@@ -64,10 +64,12 @@ module.exports = {
         raison:       raison,
         date:         datePourSupabase, 
         moderator_id: interaction.user.id,
-      });
+      })
+      .select()
+      .single();
 
     // Logs de modération internes
-    const logEmbed = buildSanctionEmbed('warn', user, interaction.user, raison);
+    const logEmbed = buildSanctionEmbed('warn', user, interaction.user, raison, { caseId: insertedSanction?.id });
     await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
 
     if (error) {

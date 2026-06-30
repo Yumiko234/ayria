@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { MODREMOVE_ROLES, hasAnyRole } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,6 +15,13 @@ module.exports = {
     const id = interaction.options.getInteger('id');
     const db = interaction.client.db;
 
+    // 🛡️ Vérification des rôles autorisés à supprimer une sanction
+    if (!hasAnyRole(interaction.member, MODREMOVE_ROLES)) {
+      return interaction.reply({
+        content: "❌ Vous n'avez pas l'un des rôles requis pour exécuter cette commande.",
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

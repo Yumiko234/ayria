@@ -201,6 +201,17 @@ module.exports = {
       }
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
+
+      // 📋 Log — claim / unclaim
+      const ticketNumberClaim = channel.name.split('-').pop();
+      const claimLogEmbed = buildTicketEmbed(
+        isClaim ? 'claim' : 'unclaim',
+        channel,
+        user,
+        ticketNumberClaim,
+        { targetUserId }
+      );
+      await sendLog(guild, LOG_TYPES.TICKET, claimLogEmbed);
     }
 
     // 🔒 C. FERMETURE ET ARCHIVAGE DU TICKET
@@ -308,6 +319,11 @@ module.exports = {
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
       await channel.send({ content: '🔓 **Ticket réouvert.** Tout le monde retrouve ses accès d\'origine.' });
+
+      // 📋 Log — ticket réouvert
+      const ticketNumberReopen = channel.name.split('-').pop();
+      const reopenLogEmbed = buildTicketEmbed('reopen', channel, user, ticketNumberReopen, { targetUserId });
+      await sendLog(guild, LOG_TYPES.TICKET, reopenLogEmbed);
     }
   },
 };

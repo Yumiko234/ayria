@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { sendLog, buildSanctionEmbed, LOG_TYPES } = require('../events/logManager');
+const { CHANGELOGS_ROLES, hasAnyRole } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -17,6 +18,14 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
   async execute(interaction) {
+    // 🛡️ Vérification des rôles autorisés à modifier une sanction
+    if (!hasAnyRole(interaction.member, CHANGELOGS_ROLES)) {
+      return interaction.reply({
+        content: "❌ Vous n'avez pas l'un des rôles requis pour exécuter cette commande.",
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const caseId    = interaction.options.getInteger('case');

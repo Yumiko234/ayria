@@ -64,17 +64,22 @@ function buildSanctionEmbed(type, user, moderator, raison, extra = {}) {
     mute: '🔇', unmute: '🔊', warn: '⚠️', clearlogs: '🗑️',
   };
 
+  const footerText = extra.caseId
+    ? `Case #${extra.caseId} • ID utilisateur : ${user.id}`
+    : `ID utilisateur : ${user.id}`;
+
   const embed = new EmbedBuilder()
-    .setTitle(`${icons[type] ?? '🛡️'} Sanction — ${type.toUpperCase()}`)
+    .setTitle(`${icons[type] ?? '🛡️'} Sanction — ${type.toUpperCase()}${extra.caseId ? ` (#${extra.caseId})` : ''}`)
     .setColor(colors[type] ?? '#FF0000')
     .setThumbnail(user.displayAvatarURL())
     .addFields(
+      ...(extra.caseId ? [{ name: 'ID Sanction', value: `#${extra.caseId}`, inline: true }] : []),
       { name: 'Utilisateur',  value: `${user.tag} (<@${user.id}>)`, inline: true },
       { name: 'Modérateur',   value: moderator ? `<@${moderator.id}>` : 'Automatique', inline: true },
       { name: 'Raison',       value: raison, inline: false },
       ...(extra.duration ? [{ name: 'Durée', value: extra.duration, inline: true }] : []),
     )
-    .setFooter({ text: `ID utilisateur : ${user.id}` })
+    .setFooter({ text: footerText })
     .setTimestamp();
 
   return embed;
@@ -159,16 +164,32 @@ function buildMemberLeaveEmbed(member) {
     .setTimestamp();
 }
 
-function buildTicketEmbed(action, channel, user, ticketNumber) {
-  const isOpen = action === 'open';
+function buildTicketEmbed(action, channel, user, ticketNumber, extra = {}) {
+  const meta = {
+    open:    { title: '🎫 Ticket ouvert',    color: '#00CC66', actionLabel: 'Ouvert par' },
+    close:   { title: '🔒 Ticket fermé',     color: '#FF8800', actionLabel: 'Fermé par' },
+    claim:   { title: '🙋‍♂️ Ticket pris en charge', color: '#5865f2ff', actionLabel: 'Pris en charge par' },
+    unclaim: { title: '🤷‍♂️ Ticket libéré',  color: '#AAAAAA', actionLabel: 'Libéré par' },
+    reopen:  { title: '🔓 Ticket réouvert',  color: '#00CC66', actionLabel: 'Réouvert par' },
+    delete:  { title: '🗑️ Ticket supprimé',  color: '#FF2222', actionLabel: 'Supprimé par' },
+  };
+
+  const { title, color, actionLabel } = meta[action] ?? { title: '🎫 Ticket', color: '#9f00f5', actionLabel: 'Action par' };
+
+  const fields = [
+    { name: actionLabel, value: `<@${user.id}>`, inline: true },
+    { name: 'Salon',     value: action === 'delete' ? `\`${channel.name}\`` : `<#${channel.id}>`, inline: true },
+    { name: 'Numéro',    value: `#${ticketNumber}`, inline: true },
+  ];
+
+  if (extra.targetUserId) {
+    fields.unshift({ name: 'Utilisateur du ticket', value: `<@${extra.targetUserId}>`, inline: true });
+  }
+
   return new EmbedBuilder()
-    .setTitle(isOpen ? '🎫 Ticket ouvert' : '🔒 Ticket fermé')
-    .setColor(isOpen ? '#00CC66' : '#FF8800')
-    .addFields(
-      { name: 'Utilisateur', value: `<@${user.id}>`, inline: true },
-      { name: 'Salon',       value: `<#${channel.id}>`, inline: true },
-      { name: 'Numéro',      value: `#${ticketNumber}`, inline: true },
-    )
+    .setTitle(title)
+    .setColor(color)
+    .addFields(fields)
     .setFooter({ text: `Channel ID : ${channel.id}` })
     .setTimestamp();
 }
