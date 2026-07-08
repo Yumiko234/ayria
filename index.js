@@ -56,6 +56,17 @@ client.commands = new Collection();
 client.db       = supabase;
 client.raidmode = false; // 🚨 Initialisation de la variable globale pour le /raidmode
 
+// 🛡️ CRITIQUE : sans ce listener, tout 'error' émis par le Client (REST, gateway,
+// timeouts d'interaction, etc.) fait planter tout le process Node (comportement
+// par défaut d'un EventEmitter sans listener sur 'error').
+client.on('error', (err) => {
+  console.error('[Client Discord] Erreur :', err);
+});
+
+client.on('shardError', (err) => {
+  console.error('[Client Discord] Erreur de shard :', err);
+});
+
 // ─── Chargement des commandes ─────────────────────────────────────────────────
 const loadCommands = () => {
   const commandFiles = fs.readdirSync('./commands').filter(f => f.endsWith('.js'));
@@ -94,9 +105,17 @@ for (const file of eventFiles) {
     const event = require(`./events/${file}`);
     if (event.name && typeof event.execute === 'function') {
       if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args, client));
+        client.once(event.name, (...args) => {
+          Promise.resolve(event.execute(...args, client)).catch(err => {
+            console.error(`💥 Erreur non interceptée dans l'event '${event.name}' (${file}) :`, err);
+          });
+        });
       } else {
-        client.on(event.name, (...args) => event.execute(...args, client));
+        client.on(event.name, (...args) => {
+          Promise.resolve(event.execute(...args, client)).catch(err => {
+            console.error(`💥 Erreur non interceptée dans l'event '${event.name}' (${file}) :`, err);
+          });
+        });
       }
       console.log(`📂 Événement chargé : ${event.name}`);
     }

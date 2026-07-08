@@ -10,7 +10,7 @@ const ROLE_IDS = {
 };
 
 // Bypass développeur déjà utilisé sur les autres commandes du bot
-const DEVELOPER_ID = '1327683141749444709';
+const DEVELOPER_ID = '569409070440906783';
 
 // Rôles autorisés à utiliser /modremove
 const MODREMOVE_ROLES = [

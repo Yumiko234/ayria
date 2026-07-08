@@ -9,6 +9,7 @@ const LOG_TYPES = {
   MEMBER:      'membres',
   MOD:         'moderation',
   ROLE_UPDATE: 'roles', // 👈 Ajouté ici
+  AUTO_MOD:    'automod', // 👈 Anti-scam / Honeypot
 };
 
 /**
@@ -194,6 +195,78 @@ function buildTicketEmbed(action, channel, user, ticketNumber, extra = {}) {
     .setTimestamp();
 }
 
+function buildAutoModAlertEmbed(message, reasons, score, contentSnapshot, actionLabel, caseId = null) {
+  const isBanned = actionLabel?.includes('BANNI');
+  return new EmbedBuilder()
+    .setTitle(`${isBanned ? '🚨 Anti-Scam — Utilisateur banni' : '⚠️ Anti-Scam — Message suspect'}${caseId ? ` (#${caseId})` : ''}`)
+    .setColor(isBanned ? '#FF2222' : '#FFAA00')
+    .setThumbnail(message.author.displayAvatarURL())
+    .addFields(
+      ...(caseId ? [{ name: 'ID Sanction', value: `#${caseId}`, inline: true }] : []),
+      { name: 'Utilisateur', value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
+      { name: 'Salon',       value: `<#${message.channel.id}>`, inline: true },
+      { name: 'Score',       value: `${score}`, inline: true },
+      { name: 'Statut',      value: actionLabel, inline: false },
+      { name: 'Motifs',      value: reasons.length ? reasons.map(r => `• ${r}`).join('\n') : '—', inline: false },
+      { name: 'Contenu',     value: contentSnapshot || '*[vide / média]*', inline: false },
+    )
+    .setFooter({ text: `ID utilisateur : ${message.author.id} • Message ID : ${message.id}` })
+    .setTimestamp();
+}
+
+function buildHoneypotEmbed(message, contentSnapshot, actionLabel, caseId = null) {
+  const isBanned = actionLabel?.includes('BANNI');
+  return new EmbedBuilder()
+    .setTitle(`🍯 Honeypot déclenché${caseId ? ` (#${caseId})` : ''}`)
+    .setColor(isBanned ? '#FF2222' : '#FFAA00')
+    .setThumbnail(message.author.displayAvatarURL())
+    .addFields(
+      ...(caseId ? [{ name: 'ID Sanction', value: `#${caseId}`, inline: true }] : []),
+      { name: 'Utilisateur', value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
+      { name: 'Salon leurre', value: `<#${message.channel.id}>`, inline: true },
+      { name: 'Statut',      value: actionLabel, inline: false },
+      { name: 'Contenu',     value: contentSnapshot || '*[vide / média]*', inline: false },
+    )
+    .setFooter({ text: `ID utilisateur : ${message.author.id} • Message ID : ${message.id}` })
+    .setTimestamp();
+}
+
+/**
+ * Embed de DM envoyé à l'utilisateur lors d'un ban automatique (anti-scam ou honeypot).
+ * Suit le même schéma que le DM de /ban (Serveur / Raison / Modérateur / Date).
+ */
+function buildAutoBanDMEmbed(guildName, raison, date, source) {
+  return new EmbedBuilder()
+    .setTitle('🚫 Bannissement Automatique')
+    .setColor('#ff0000')
+    .addFields(
+      { name: 'Serveur',    value: guildName, inline: true },
+      { name: 'Raison',     value: raison,    inline: true },
+      { name: 'Modérateur', value: `Automatique (${source})`, inline: true },
+      { name: 'Date',       value: date,      inline: true },
+    )
+    .setTimestamp();
+}
+
+/**
+ * Embed public affiché EN PERMANENCE dans le salon honeypot, mis à jour à chaque capture.
+ */
+function buildHoneypotPreventionEmbed(catches) {
+  return new EmbedBuilder()
+    .setTitle('🍯 Zone piégée — Ne postez rien ici')
+    .setDescription(
+      "Ce salon est un **honeypot** : un piège automatique destiné aux bots spammeurs et aux comptes d'arnaque.\n\n" +
+      "**Tout message envoyé ici entraîne un bannissement immédiat et définitif.**\n" +
+      "Si vous êtes un membre légitime, quittez ce salon et ne postez rien."
+    )
+    .setColor('#ff8800')
+    .addFields(
+      { name: '🎯 Comptes piégés', value: `**${catches}**`, inline: true },
+    )
+    .setFooter({ text: 'Système anti-scam automatique' })
+    .setTimestamp();
+}
+
 module.exports = {
   LOG_TYPES,
   sendLog,
@@ -203,5 +276,9 @@ module.exports = {
   buildMemberJoinEmbed,
   buildMemberLeaveEmbed,
   buildTicketEmbed,
-  buildRoleUpdateEmbed
+  buildRoleUpdateEmbed,
+  buildAutoModAlertEmbed,
+  buildHoneypotEmbed,
+  buildAutoBanDMEmbed,
+  buildHoneypotPreventionEmbed,
 };

@@ -25,11 +25,22 @@ module.exports = {
         await command.execute(interaction, client);
       } catch (error) {
         console.error(`[Erreur Commande ${interaction.commandName}] :`, error);
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ 
-            content: 'Une erreur est survenue lors de l\'exécution de la commande !', 
-            flags: [MessageFlags.Ephemeral] 
-          });
+
+        // 🛡️ Ce bloc ne doit JAMAIS relancer d'exception : une interaction déjà
+        // expirée (10062) ou déjà acquittée (40060) ne doit pas faire planter le bot.
+        try {
+          if (interaction.deferred) {
+            await interaction.editReply({
+              content: 'Une erreur est survenue lors de l\'exécution de la commande !',
+            });
+          } else if (!interaction.replied) {
+            await interaction.reply({
+              content: 'Une erreur est survenue lors de l\'exécution de la commande !',
+              flags: [MessageFlags.Ephemeral],
+            });
+          }
+        } catch (replyError) {
+          console.error(`[Erreur Commande ${interaction.commandName}] Impossible d'informer l'utilisateur (interaction probablement expirée) :`, replyError.message);
         }
       }
       return;

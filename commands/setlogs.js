@@ -9,6 +9,7 @@ const LOG_CHOICES = [
   { name: 'Entrée / sortie de membres',         value: LOG_TYPES.MEMBER },
   { name: 'Actions de modération générales',    value: LOG_TYPES.MOD },
   { name: 'Modification des rôles d\'un utilisateur', value: LOG_TYPES.ROLE_UPDATE }, // 👈 Corrigé ici
+  { name: 'Anti-Scam / Honeypot (détections automatiques)', value: LOG_TYPES.AUTO_MOD }, // 👈 Ajouté ici
 ];
 
 module.exports = {

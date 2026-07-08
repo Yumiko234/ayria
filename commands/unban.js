@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,14 +15,20 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
   async execute(interaction) {
+    // ✨ On defer tout de suite : bans.fetch() peut être lent sur un gros serveur,
+    //    et on ne veut plus jamais risquer un double-reply plus loin.
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
     const user   = interaction.options.getUser('utilisateur');
     const raison = interaction.options.getString('raison');
     const date   = new Date().toISOString();
     const db     = interaction.client.db;
 
-    const bannedUsers = await interaction.guild.bans.fetch();
-    if (!bannedUsers.get(user.id)) {
-      return interaction.reply({ content: `${user.tag} n\'est pas banni.`, ephemeral: true });
+    const bannedUsers = await interaction.guild.bans.fetch().catch(() => null);
+    const wasKnownBanned = bannedUsers?.get(user.id) != null;
+
+    if (bannedUsers && !wasKnownBanned) {
+      return interaction.editReply({ content: `${user.tag} n'est pas banni.` });
     }
 
     const dmEmbed = new EmbedBuilder()
@@ -37,7 +43,18 @@ module.exports = {
       .setTimestamp();
 
     try {
-      await interaction.guild.members.unban(user, raison);
+      try {
+        await interaction.guild.members.unban(user, raison);
+      } catch (unbanErr) {
+        // ✨ Code 10026 = "Unknown Ban" : la personne n'est déjà plus bannie.
+        //    Souvent causé par un retry réseau qui rejoue une requête déjà réussie.
+        //    On le traite comme un succès idempotent plutôt qu'une erreur bloquante.
+        if (unbanErr.code === 10026) {
+          console.warn(`[Unban] ${user.tag} n'était déjà plus banni (10026) — traité comme un succès.`);
+        } else {
+          throw unbanErr;
+        }
+      }
 
       try { await user.send({ embeds: [dmEmbed] }); }
       catch { console.error(`Impossible d'envoyer un DM à ${user.tag}`); }
@@ -54,18 +71,25 @@ module.exports = {
         })
         .select()
         .single();
-const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
-const logEmbed = buildSanctionEmbed('unban', user, interaction.user, raison, { caseId: insertedSanction?.id });
-await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
+
+      const { buildSanctionEmbed, sendLog, LOG_TYPES } = require('../events/logManager');
+      const logEmbed = buildSanctionEmbed('unban', user, interaction.user, raison, { caseId: insertedSanction?.id });
+      await sendLog(interaction.guild, LOG_TYPES.SANCTION, logEmbed);
+
       if (error) {
         console.error('Supabase (unban) :', error.message);
-        return interaction.reply({ content: 'Erreur lors de l\'enregistrement du débannissement.', ephemeral: true });
+        return interaction.editReply({ content: 'Débannissement effectué, mais erreur lors de l\'enregistrement en base.' });
       }
 
-      await interaction.reply(`<:login:1393643411633995796> Le membre **${user.tag}** a été débanni pour le motif suivant : ${raison}.`);
+      await interaction.editReply(`<:login:1393643411633995796> Le membre **${user.tag}** a été débanni pour le motif suivant : ${raison}.`);
     } catch (err) {
       console.error('Erreur lors du débannissement :', err);
-      interaction.reply({ content: 'Une erreur est survenue lors du débannissement.', ephemeral: true });
+      // 🛡️ On ne répond que si l'interaction n'a pas déjà reçu de réponse
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: 'Une erreur est survenue lors du débannissement.' }).catch(() => {});
+      } else {
+        await interaction.reply({ content: 'Une erreur est survenue lors du débannissement.', flags: [MessageFlags.Ephemeral] }).catch(() => {});
+      }
     }
   },
 };
