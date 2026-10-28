@@ -13,8 +13,8 @@ module.exports = {
         "Les absences Staff prennent trois formes : les absences de moins d'une semaine, d'une à quatre semaines et les absences de plus d'un mois.\n"+
         "En fonction de la durée de votre absences vous recevrez :\n"+
         "- Moins d'une semaine : Aucun rôle, conservation des permissions de modération ;\n"+
-        "- D'une semaine à quatre semaines : <@&152163119753>, conservation des permissions Staff de base ;\n"+
-        "- De plus d'un mois : <@&1521163080725>, suspension des permissions de Staff. \n\n"+
+        "- D'une semaine à quatre semaines : <@&1521631197535666398>, conservation des permissions Staff de base ;\n"+
+        "- De plus d'un mois : <@&1521630807251226674>, suspension des permissions de Staff. \n\n"+
         "### Format :\n"+
         "Pseudo :\n"+
         "Date de début :\n"+
