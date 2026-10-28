@@ -21,7 +21,7 @@ module.exports = {
         "Date de fin estimée :\n"+
         "Mention : @votre Responsable"
       )
-      .setColor(4394149)
+      .setColor(9413506)
       .setImage("https://cdn.discordapp.com/attachments/1495675329555988604/1519665152226754610/Ayria_Banner.png?ex=6a3e61f6&is=6a3d1076&hm=e3b910b61fe27de5baf7c52ccdeb0cc45bd857da60e51c81ec5890cdb513d621&")
       .setThumbnail("https://cdn.discordapp.com/icons/1518048523818373300/70f58098faef1487b54ab48a02b2b7a0.webp");
 
