@@ -37,6 +37,9 @@ const CLEARLOGS_ROLES = [
   ROLE_IDS.GERANT_STAFF,
 ];
 
+// Rôles autorisés à utiliser /giveaway et /drop (= mêmes rôles que /modremove ; à ajuster)
+const GIVEAWAY_ROLES = [...MODREMOVE_ROLES];
+
 /**
  * Vérifie si un membre possède au moins l'un des rôles fournis (ou est le développeur).
  * @param {import('discord.js').GuildMember} member
@@ -55,5 +58,6 @@ module.exports = {
   MODREMOVE_ROLES,
   CHANGELOGS_ROLES,
   CLEARLOGS_ROLES,
+  GIVEAWAY_ROLES,
   hasAnyRole,
 };
