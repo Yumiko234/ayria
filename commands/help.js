@@ -38,6 +38,7 @@ module.exports = {
           { name: '/warn',      desc: 'Donne un avertissement à un utilisateur.\n`/warn <utilisateur> <raison>`' },
           { name: '/purge',     desc: 'Supprime un nombre précis de messages (1-100).\n`/purge <nombre> [utilisateur]`' },
           { name: '/case',      desc: 'Affiche les détails d\'une sanction via son ID.\n`/case <id>`' },
+          { name: '/reason',    desc: 'Modifie la raison d\'une sanction existante.\n`/reason <id> <nouvelle_raison>`' },
           { name: '/modlogs',   desc: 'Affiche l\'historique des sanctions d\'un utilisateur.\n`/modlogs <utilisateur>`' },
           { name: '/modremove', desc: 'Supprime une sanction via son ID. *(Responsable Modération+)*\n`/modremove <id>`' },
           { name: '/clearlogs', desc: 'Supprime tout l\'historique des sanctions d\'un utilisateur. *(Superviseur+)*\n`/clearlogs <utilisateur> <raison>`' },
@@ -86,6 +87,7 @@ module.exports = {
         commands: [
           { name: '/ping', desc: 'Affiche la latence du bot.\n`/ping`' },
           { name: '/help', desc: 'Affiche cette aide.\n`/help [catégorie]`' },
+          { name : '/changelog', desc: 'Publie un changelog dans le salon de ton choix. *(Responsable Modération+)*\n`/changelog [salon] [mention]`' },
         ],
       },
     };

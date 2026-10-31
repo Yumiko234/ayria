@@ -4,7 +4,7 @@ const { CHANGELOGS_ROLES, hasAnyRole } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('changelogs')
+    .setName('reason')
     .setDescription('Modifie la raison d\'une sanction existante')
     .addIntegerOption(option =>
       option.setName('case')
