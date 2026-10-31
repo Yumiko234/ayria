@@ -4,7 +4,7 @@ const {
 } = require('discord.js');
 const { hasAnyRole, CHANGELOGS_ROLES } = require('../utils/permissions');
 
-const EMBED_COLOR        = 4394149;        // même couleur que /absence
+const EMBED_COLOR        = 9413506;        // même couleur que /absence
 const MODAL_TIMEOUT_MS   = 15 * 60_000;    // temps pour écrire le changelog
 const PREVIEW_TIMEOUT_MS = 5 * 60_000;     // temps pour confirmer l'aperçu
 
