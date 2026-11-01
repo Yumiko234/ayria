@@ -4,6 +4,7 @@ const { REST }         = require('@discordjs/rest');
 const { Routes }       = require('discord-api-types/v10');
 const { createClient } = require('@supabase/supabase-js');
 const fs               = require('fs');
+const https            = require('https');
 require('dotenv').config({ path: './login.env' });
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
@@ -524,7 +525,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 setInterval(() => {
-  https.get(RENDER_URL, (res) => {
+  https .get(RENDER_URL, (res) => {
     console.log(`[Auto-Ping] Statut reçu : ${res.statusCode}`);
   }).on('error', (err) => {
     console.error(`[Auto-Ping] Erreur : ${err.message}`);
