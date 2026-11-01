@@ -1,4 +1,3 @@
-// Tout en haut de index.js, modifie l'importation comme ceci :
 const { Client, GatewayIntentBits, Collection, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { REST }         = require('@discordjs/rest');
 const { Routes }       = require('discord-api-types/v10');
@@ -524,14 +523,33 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-setInterval(() => {
-  https .get(RENDER_URL, (res) => {
-    console.log(`[Auto-Ping] Statut reçu : ${res.statusCode}`);
-  }).on('error', (err) => {
-    console.error(`[Auto-Ping] Erreur : ${err.message}`);
-  });
-},
-10 * 60 * 1000
-);
+// ─── Auto-ping (optionnel) ────────────────────────────────────────────────────
+// Sur Render, RENDER_EXTERNAL_URL est normalement fournie pour un Web Service
+// (à vérifier dans l'onglet Environment). Sans URL, l'auto-ping est simplement désactivé.
+function startAutoPing(url, everyMs = 10 * 60 * 1000) {
+  const lib = url.startsWith('http://') ? require('http') : https;
+  return setInterval(() => {
+    const req = lib.get(url, res => {
+      console.log(`[Auto-Ping] Statut reçu : ${res.statusCode}`);
+      res.resume();
+    });
+    req.on('error', err => console.error(`[Auto-Ping] Erreur : ${err.message}`));
+    req.setTimeout(15_000, () => req.destroy(new Error('délai dépassé')));
+  }, everyMs);
+}
 
-client.login(process.env.TOKEN);
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || process.env.RENDER_URL;
+if (RENDER_URL) startAutoPing(RENDER_URL);
+else console.log('[Auto-Ping] Désactivé (aucune URL configurée).');
+
+// ─── Connexion à Discord (avec diagnostic) ────────────────────────────────────
+console.log(`[Boot] discord.js ${require('discord.js').version} · Node ${process.version}`);
+client.rest.on('rateLimited', info => console.warn('[REST] Rate limit :', info.method, info.route, `${info.timeToReset} ms`));
+
+client.login(process.env.TOKEN).catch(err => {
+  console.error('[Login] Échec de connexion à Discord :', err.message);
+});
+
+setTimeout(() => {
+  if (!client.isReady()) console.error('[Login] Toujours pas connecté après 60 s.');
+}, 60_000);
