@@ -33,7 +33,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle("Ouverture d'un ticket")
       .setDescription(description)
-      .setColor('#9f00f5')
+      .setColor('#8FA382')
       .setFooter({
         text: 'AYRIA',
         iconURL: 'https://cdn.discordapp.com/attachments/1519273679173845133/1519293727430934618/70f58098faef1487b54ab48a02b2b7a0.png?ex=6a3d080b&is=6a3bb68b&hm=b194703dba3b89fb6e8c4b474a0d0f8d93f6610de50f0c1704cf046805b517c7&',
