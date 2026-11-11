@@ -5,7 +5,7 @@ const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, Button
 // ─── Réglages ────────────────────────────────────────────────────────────────
 const CATEGORY_OPEN   = 'tickets ouvert';
 const CATEGORY_CLOSED = 'tickets fermés';
-const COLOR           = '#9f00f5';
+const COLOR           = '#8FA382';
 const INTERNAL_PREFIX = '//';   // un message du staff commençant par // n'est PAS envoyé à l'utilisateur
 const ANONYMOUS_STAFF = true;   // true : l'utilisateur voit « Équipe AYRIA » ; false : il voit le pseudo du modérateur
 const PENDING_TTL_MS  = 10 * 60 * 1000; // délai pour choisir un type après le premier MP
