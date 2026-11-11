@@ -24,9 +24,9 @@ module.exports = {
         // --- Gestion des Badges HypeSquad ---
         const flags = (await targetUser.fetchFlags()).toArray();
         let hypesquadEmoji = "";
-        if (flags.includes('HypeSquadOnlineHouse1')) hypesquadEmoji = "<:HPBravery:1490036116533805278> ";
-        if (flags.includes('HypeSquadOnlineHouse2')) hypesquadEmoji = "<:HPBrillance:1490036020035715293> ";
-        if (flags.includes('HypeSquadOnlineHouse3')) hypesquadEmoji = "<:HPBalance:1490036065384272023> ";
+        if (flags.includes('HypeSquadOnlineHouse1')) hypesquadEmoji = "<:HPBravery:1567088929826537542> ";
+        if (flags.includes('HypeSquadOnlineHouse2')) hypesquadEmoji = "<:HPBrillance:1567088861702787122> ";
+        if (flags.includes('HypeSquadOnlineHouse3')) hypesquadEmoji = "<:HPBalance:1567088895924117635> ";
 
         // --- Gestion des Rôles (Mentions) ---
         const roles = targetMember.roles.cache
@@ -58,6 +58,6 @@ module.exports = {
             .setTimestamp()
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
-        await interaction.reply({ embeds: [embed] });
+        await interaction.editReply({ embeds: [embed] });
     },
 };

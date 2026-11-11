@@ -32,7 +32,7 @@ module.exports = {
     }
 
     const dmEmbed = new EmbedBuilder()
-      .setTitle('<:login:1393643411633995796> Débannissement')
+      .setTitle('<:login:1567087268211064832> Débannissement')
       .setColor('#00ff00')
       .addFields(
         { name: 'Serveur',    value: interaction.guild.name,      inline: true },
@@ -81,7 +81,7 @@ module.exports = {
         return interaction.editReply({ content: 'Débannissement effectué, mais erreur lors de l\'enregistrement en base.' });
       }
 
-      await interaction.editReply(`<:login:1393643411633995796> Le membre **${user.tag}** a été débanni pour le motif suivant : ${raison}.`);
+      await interaction.editReply(`<:login:1567087268211064832> Le membre **${user.tag}** a été débanni pour le motif suivant : ${raison}.`);
     } catch (err) {
       console.error('Erreur lors du débannissement :', err);
       // 🛡️ On ne répond que si l'interaction n'a pas déjà reçu de réponse

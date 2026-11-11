@@ -1,5 +1,8 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { sendLog, buildTicketEmbed, LOG_TYPES } = require('./logManager');
+const T = require('../utils/tickets');
+const { openTicketFromDM } = require('../utils/ticketService');
+const { sendDM } = require('../utils/dm');
 
 module.exports = {
   name: 'interactionCreate',
@@ -46,295 +49,220 @@ module.exports = {
       return;
     }
 
-    // ── 2. GESTION DES BOUTONS (TICKETS) ──────────────────────────────────────
+    // ── 2. GESTION DES BOUTONS (TICKETS PAR MP) ───────────────────────────────
     if (!interaction.isButton()) return;
 
     const { customId, guild, user, channel } = interaction;
 
-    const ticketTypes = {
-      open_request:     { prefix: 'ticket-qs',         label: 'Question / Signalement' },
-      open_application: { prefix: 'ticket-candi',      label: 'Recrutement Staff' },
-      open_partnership: { prefix: 'ticket-partenariat', label: 'Partenariat' }
-    };
+    // 📩 A. CHOIX DU TYPE DANS LE MP -> CRÉATION DU TICKET
+    if (customId.startsWith('dmticket:')) {
+      if (interaction.inGuild()) return; // ces boutons n'existent qu'en MP
+      await interaction.deferUpdate();
 
-    // 📂 A. CRÉATION DU TICKET
-    if (ticketTypes[customId]) {
-      // 🛡️ Sécurisation immédiate de l'interaction (Évite l'erreur 10062)
-      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const typeKey = customId.split(':')[1];
+      const result = await openTicketFromDM(client, user, typeKey);
 
-      const config = ticketTypes[customId];
-      
-      // 🔍 Recherche robuste de la catégorie (Cache puis API Discord)
-      let categoryOpen = guild.channels.cache.find(c => c.name.toLowerCase() === 'tickets ouvert' && c.type === ChannelType.GuildCategory);
-      if (!categoryOpen) {
-        const fetchedChannels = await guild.channels.fetch();
-        categoryOpen = fetchedChannels.find(c => c.name.toLowerCase() === 'tickets ouvert' && c.type === ChannelType.GuildCategory);
-        if (!categoryOpen) {
-          categoryOpen = await guild.channels.create({ name: 'Tickets ouvert', type: ChannelType.GuildCategory });
-        }
+      if (!result.ok) {
+        const reasons = {
+          exists:     "Tu as déjà un ticket ouvert : écris simplement ici, tes messages lui sont transmis.",
+          busy:       "Ton ticket est en cours de création, patiente quelques secondes.",
+          not_member: "Tu dois être membre du serveur pour ouvrir un ticket.",
+          no_guild:   "Le serveur est introuvable pour le moment. Réessaie plus tard.",
+          error:      "Une erreur est survenue lors de la création du ticket. Réessaie dans un instant.",
+        };
+        return interaction.editReply({
+          embeds: [new EmbedBuilder().setColor('#FF2222').setDescription(`❌ ${reasons[result.reason] ?? reasons.error}`)],
+          components: [],
+        }).catch(() => {});
       }
 
-      const staffRole = guild.roles.cache.find(r => r.permissions.has(PermissionFlagsBits.ManageMessages));
-
-      const baseOverwrites = [
-        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
-      ];
-
-      if (staffRole && staffRole.id) {
-        baseOverwrites.push({ 
-          id: staffRole.id, 
-          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] 
-        });
-      }
-
-      // 🔢 Récupération sécurisée du nombre de tickets existants pour ce type précis
-      const { count, error: countError } = await supabase
-        .from('tickets')
-        .select('*', { count: 'exact', head: true })
-        .eq('type', config.label);
-
-      if (countError) {
-        console.error('[Supabase] Erreur count ticket :', countError.message);
-        return interaction.editReply('❌ Une erreur est survenue lors de la configuration du numéro de votre ticket.');
-      }
-
-      const nextNumber = (count || 0) + 1;
-      const linearId = String(nextNumber).padStart(4, '0');
-
-      // 🏢 Création du salon textuel avec ID linéaire par type
-      const ticketChannel = await guild.channels.create({
-        name: `${config.prefix}-${linearId}`,
-        type: ChannelType.GuildText,
-        parent: categoryOpen.id,
-        permissionOverwrites: baseOverwrites
-      });
-
-      // 💾 Insertion des données finales dans Supabase
-      const { error: insertError } = await supabase
-        .from('tickets')
-        .insert({
-          ticket_id: ticketChannel.id, 
-          type: config.label,
-          author_id: user.id,
-          status: 'Ouvert',
-          created_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('[Supabase] Erreur insertion ticket :', insertError.message);
-      }
-
-      const embed = new EmbedBuilder()
-        .setTitle(`🎫 Ticket N°${linearId} — ${config.label}`)
-        .setDescription(`Bonjour ${user}, bienvenue dans ton ticket.\nUn membre de l'équipe de modération va te prendre en charge sous peu.\n\nMerci de détailler au maximum ta demande en attendant.`)
-        .setColor('#9f00f5')
-        .addFields(
-          { name: 'Auteur', value: `${user.tag} (<@${user.id}>)`, inline: true },
-          { name: 'Type', value: config.label, inline: true },
-          { name: 'Statut', value: '🔓 Ouvert / Non pris en charge', inline: true }
-        )
+      const confirm = new EmbedBuilder()
+        .setColor(T.COLOR)
+        .setTitle(`✅ Ticket N°${result.linearId} ouvert — ${result.config.label}`)
+        .setDescription([
+          "Ton message a été transmis à l'équipe. Tu peux continuer à écrire ici : tout sera transmis à l'équipe, et leurs réponses arriveront dans ce MP.",
+          '',
+          "⚠️ L'équipe de modération étant entièrement bénévole, merci de bien vouloir excuser les potentiels délais de réponse.",
+        ].join('\n'))
         .setTimestamp();
-
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_claim').setLabel('🙋‍♂️ Claim').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Fermer').setStyle(ButtonStyle.Danger)
-      );
-
-      await ticketChannel.send({ embeds: [embed], components: [row] });
-
-      // 📋 Log — ticket ouvert
-      const openLogEmbed = buildTicketEmbed('open', ticketChannel, user, linearId);
-      await sendLog(guild, LOG_TYPES.TICKET, openLogEmbed);
-
-      return interaction.editReply(`✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>`);
+      return interaction.editReply({ embeds: [confirm], components: [] }).catch(() => {});
     }
+
+    // ♻️ Anciens panneaux : les boutons d'ouverture du salon Support n'existent plus
+    if (['open_request', 'open_application', 'open_partnership'].includes(customId)) {
+      return interaction.reply({
+        content: `📩 Les tickets s'ouvrent désormais **par message privé** : envoie un MP à <@${client.user.id}> et choisis le type de ticket.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+
+    // Les boutons ci-dessous sont réservés aux salons de tickets (serveur)
+    if (!guild) return;
 
     // 🙋‍♂️ B. SYSTÈME DE CLAIM / UNCLAIM
     if (customId === 'ticket_claim' || customId === 'ticket_unclaim') {
-      // 🛡️ Sécurisation immédiate de l'interaction (Évite l'erreur 10062)
       await interaction.deferUpdate();
 
+      const ticket = await T.getTicketByChannel(supabase, channel.id);
+      if (!ticket) {
+        return interaction.followUp({ content: '❌ Ce salon n\'est lié à aucun ticket en base de données.', flags: [MessageFlags.Ephemeral] });
+      }
+
       const isClaim = customId === 'ticket_claim';
-      const staffRole = guild.roles.cache.find(r => r.permissions.has(PermissionFlagsBits.ManageMessages));
-      
+      const staffRole = T.getStaffRole(guild);
+      const targetUserId = ticket.author_id;
+
       const originalMessage = interaction.message;
       const receivedEmbed = originalMessage.embeds[0];
       if (!receivedEmbed) return;
 
       const updatedEmbed = EmbedBuilder.from(receivedEmbed);
       const updatedRow = ActionRowBuilder.from(originalMessage.components[0]);
-      const targetUserId = receivedEmbed.fields[0].value.split('(')[1].replace(/[^\d]/g, '');
+
+      const botAccess = { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] };
+      const staffAccess = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory];
 
       if (isClaim) {
         const overwrites = [
           { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-          { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+          botAccess,
+          { id: user.id, allow: staffAccess },
         ];
-
-        if (staffRole && staffRole.id) {
-          overwrites.push({ id: staffRole.id, deny: [PermissionFlagsBits.ViewChannel] });
-        }
+        if (staffRole?.id) overwrites.push({ id: staffRole.id, deny: [PermissionFlagsBits.ViewChannel] });
 
         await channel.permissionOverwrites.set(overwrites);
-
-        await supabase
-          .from('tickets')
-          .update({ status: `Pris en charge par ${user.id}` })
-          .eq('ticket_id', channel.id);
+        await supabase.from('tickets').update({ status: `Pris en charge par ${user.id}` }).eq('ticket_id', channel.id);
 
         updatedEmbed.spliceFields(2, 1, { name: 'Statut', value: `🎯 Pris en charge par <@${user.id}>`, inline: true });
         updatedRow.components[0] = new ButtonBuilder().setCustomId('ticket_unclaim').setLabel('🤷‍♂️ Unclaim').setStyle(ButtonStyle.Secondary);
-        
-        await channel.send({ content: `🙋‍♂️ **${user.username}** a pris en charge le ticket. Les autres modérateurs n'y ont plus accès.` });
+
+        await channel.send({ content: `🙋‍♂️ **${user.username}** a pris en charge le ticket. Les autres modérateurs n'y ont plus accès.`, allowedMentions: { parse: [] } });
       } else {
         const overwrites = [
           { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+          botAccess,
         ];
-
-        if (staffRole && staffRole.id) {
-          overwrites.push({ id: staffRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
-        }
+        if (staffRole?.id) overwrites.push({ id: staffRole.id, allow: staffAccess });
 
         await channel.permissionOverwrites.set(overwrites);
-
-        await supabase
-          .from('tickets')
-          .update({ status: 'Ouvert' })
-          .eq('ticket_id', channel.id);
+        await supabase.from('tickets').update({ status: 'Ouvert' }).eq('ticket_id', channel.id);
 
         updatedEmbed.spliceFields(2, 1, { name: 'Statut', value: '🔓 Ouvert / Non pris en charge', inline: true });
         updatedRow.components[0] = new ButtonBuilder().setCustomId('ticket_claim').setLabel('🙋‍♂️ Claim').setStyle(ButtonStyle.Success);
-        
-        await channel.send({ content: `🤷‍♂️ **${user.username}** s'est retiré du ticket. L'équipe complète peut à nouveau intervenir.` });
+
+        await channel.send({ content: `🤷‍♂️ **${user.username}** s'est retiré du ticket. L'équipe complète peut à nouveau intervenir.`, allowedMentions: { parse: [] } });
       }
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
 
-      // 📋 Log — claim / unclaim
       const ticketNumberClaim = channel.name.split('-').pop();
-      const claimLogEmbed = buildTicketEmbed(
-        isClaim ? 'claim' : 'unclaim',
-        channel,
-        user,
-        ticketNumberClaim,
-        { targetUserId }
-      );
-      await sendLog(guild, LOG_TYPES.TICKET, claimLogEmbed);
+      await sendLog(guild, LOG_TYPES.TICKET, buildTicketEmbed(isClaim ? 'claim' : 'unclaim', channel, user, ticketNumberClaim, { targetUserId }));
     }
 
     // 🔒 C. FERMETURE ET ARCHIVAGE DU TICKET
     if (customId === 'ticket_close') {
-      // 🛡️ Sécurisation immédiate de l'interaction (Évite l'erreur 10062)
       await interaction.deferUpdate();
 
-      // 🔍 Recherche robuste de la catégorie de fermeture
-      let categoryClose = guild.channels.cache.find(c => c.name.toLowerCase() === 'tickets fermés' && c.type === ChannelType.GuildCategory);
-      if (!categoryClose) {
-        const fetchedChannels = await guild.channels.fetch();
-        categoryClose = fetchedChannels.find(c => c.name.toLowerCase() === 'tickets fermés' && c.type === ChannelType.GuildCategory);
-        if (!categoryClose) {
-          categoryClose = await guild.channels.create({ name: 'Tickets fermés', type: ChannelType.GuildCategory });
-        }
-      }
+      const ticket = await T.getTicketByChannel(supabase, channel.id);
+      const targetUserId = ticket?.author_id;
 
-      const staffRole = guild.roles.cache.find(r => r.permissions.has(PermissionFlagsBits.ManageMessages));
+      const categoryClose = await T.getClosedCategory(guild);
+      const staffRole = T.getStaffRole(guild);
       const closeOverwrites = [
-        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }
+        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
       ];
-
-      if (staffRole && staffRole.id) {
+      if (staffRole?.id) {
         closeOverwrites.push({ id: staffRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] });
       }
 
-      await channel.edit({
-        parent: categoryClose.id,
-        permissionOverwrites: closeOverwrites
-      });
-
-      await supabase
-        .from('tickets')
-        .update({ status: 'Fermé' })
-        .eq('ticket_id', channel.id);
+      await channel.edit({ parent: categoryClose.id, permissionOverwrites: closeOverwrites });
+      await supabase.from('tickets').update({ status: 'Fermé' }).eq('ticket_id', channel.id);
 
       const originalMessage = interaction.message;
       const receivedEmbed = originalMessage.embeds[0];
       if (!receivedEmbed) return;
 
-      const updatedEmbed = EmbedBuilder.from(receivedEmbed)
-        .spliceFields(2, 1, { name: 'Statut', value: '🔒 Fermé / Archivé', inline: true });
-
+      const updatedEmbed = EmbedBuilder.from(receivedEmbed).spliceFields(2, 1, { name: 'Statut', value: '🔒 Fermé / Archivé', inline: true });
       const updatedRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ticket_reopen').setLabel('🔓 Réouvrir').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('ticket_reopen').setLabel('🔓 Réouvrir').setStyle(ButtonStyle.Secondary),
       );
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
       await channel.send({ content: '🔒 **Ticket fermé et archivé.** La commande `/ticket-transcript` est désormais accessible ici.' });
 
-      // 📋 Log — ticket fermé
+      // ✉️ Prévenir l'utilisateur en MP
+      if (targetUserId) {
+        const dmOk = await sendDM(client, targetUserId, {
+          embeds: [new EmbedBuilder()
+            .setColor('#FF8800')
+            .setTitle('🔒 Ticket fermé')
+            .setDescription("Ton ticket a été fermé par l'équipe. Si tu as besoin d'autre chose, envoie-moi simplement un nouveau message pour en ouvrir un autre.")
+            .setTimestamp()],
+        });
+        if (!dmOk) await channel.send({ content: "⚠️ L'utilisateur n'a pas pu être prévenu en MP (MP fermés).", allowedMentions: { parse: [] } });
+      }
+
       const ticketNumber = channel.name.split('-').pop();
-      const closeLogEmbed = buildTicketEmbed('close', channel, user, ticketNumber);
-      await sendLog(guild, LOG_TYPES.TICKET, closeLogEmbed);
+      await sendLog(guild, LOG_TYPES.TICKET, buildTicketEmbed('close', channel, user, ticketNumber, { targetUserId }));
     }
 
     // 🔓 D. RÉOUVERTURE D'UN TICKET ARCHIVÉ
     if (customId === 'ticket_reopen') {
-      // 🛡️ Sécurisation immédiate de l'interaction (Évite l'erreur 10062)
       await interaction.deferUpdate();
 
-      // 🔍 Recherche robuste de la catégorie d'ouverture
-      let categoryOpen = guild.channels.cache.find(c => c.name.toLowerCase() === 'tickets ouvert' && c.type === ChannelType.GuildCategory);
-      if (!categoryOpen) {
-        const fetchedChannels = await guild.channels.fetch();
-        categoryOpen = fetchedChannels.find(c => c.name.toLowerCase() === 'tickets ouvert' && c.type === ChannelType.GuildCategory);
-        if (!categoryOpen) {
-          categoryOpen = await guild.channels.create({ name: 'Tickets ouvert', type: ChannelType.GuildCategory });
-        }
+      const ticket = await T.getTicketByChannel(supabase, channel.id);
+      if (!ticket) {
+        return interaction.followUp({ content: '❌ Ce salon n\'est lié à aucun ticket en base de données.', flags: [MessageFlags.Ephemeral] });
+      }
+      const targetUserId = ticket.author_id;
+
+      // Un seul ticket actif par utilisateur : on refuse si un autre est déjà ouvert
+      const other = await T.getActiveTicketByUser(supabase, targetUserId);
+      if (other && other.ticket_id !== channel.id) {
+        return interaction.followUp({
+          content: `❌ Cet utilisateur a déjà un ticket actif : <#${other.ticket_id}>. Ferme-le avant de réouvrir celui-ci.`,
+          flags: [MessageFlags.Ephemeral],
+        });
       }
 
-      const staffRole = guild.roles.cache.find(r => r.permissions.has(PermissionFlagsBits.ManageMessages));
+      const categoryOpen = await T.getOpenCategory(guild);
+      const staffRole = T.getStaffRole(guild);
       const originalMessage = interaction.message;
       const receivedEmbed = originalMessage.embeds[0];
       if (!receivedEmbed) return;
 
-      const targetUserId = receivedEmbed.fields[0].value.split('(')[1].replace(/[^\d]/g, '');
-
       const openOverwrites = [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks] },
       ];
-
-      if (staffRole && staffRole.id) {
+      if (staffRole?.id) {
         openOverwrites.push({ id: staffRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
       }
 
-      await channel.edit({
-        parent: categoryOpen.id,
-        permissionOverwrites: openOverwrites
-      });
+      await channel.edit({ parent: categoryOpen.id, permissionOverwrites: openOverwrites });
+      await supabase.from('tickets').update({ status: 'Ouvert' }).eq('ticket_id', channel.id);
 
-      await supabase
-        .from('tickets')
-        .update({ status: 'Ouvert' })
-        .eq('ticket_id', channel.id);
-
-      const updatedEmbed = EmbedBuilder.from(receivedEmbed)
-        .spliceFields(2, 1, { name: 'Statut', value: '🔓 Ouvert / Non pris en charge', inline: true });
-
+      const updatedEmbed = EmbedBuilder.from(receivedEmbed).spliceFields(2, 1, { name: 'Statut', value: '🔓 Ouvert / Non pris en charge', inline: true });
       const updatedRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_claim').setLabel('🙋‍♂️ Claim').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Fermer').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Fermer').setStyle(ButtonStyle.Danger),
       );
 
       await originalMessage.edit({ embeds: [updatedEmbed], components: [updatedRow] });
-      await channel.send({ content: '🔓 **Ticket réouvert.** Tout le monde retrouve ses accès d\'origine.' });
+      await channel.send({ content: '🔓 **Ticket réouvert.** Les messages écrits ici sont de nouveau transmis en MP.' });
 
-      // 📋 Log — ticket réouvert
+      const dmOk = await sendDM(client, targetUserId, {
+        embeds: [new EmbedBuilder()
+          .setColor('#00CC66')
+          .setTitle('🔓 Ticket réouvert')
+          .setDescription("Ton ticket a été réouvert par l'équipe. Tu peux y répondre directement dans ce MP.")
+          .setTimestamp()],
+      });
+      if (!dmOk) await channel.send({ content: "⚠️ L'utilisateur n'a pas pu être prévenu en MP (MP fermés).", allowedMentions: { parse: [] } });
+
       const ticketNumberReopen = channel.name.split('-').pop();
-      const reopenLogEmbed = buildTicketEmbed('reopen', channel, user, ticketNumberReopen, { targetUserId });
-      await sendLog(guild, LOG_TYPES.TICKET, reopenLogEmbed);
+      await sendLog(guild, LOG_TYPES.TICKET, buildTicketEmbed('reopen', channel, user, ticketNumberReopen, { targetUserId }));
     }
   },
 };

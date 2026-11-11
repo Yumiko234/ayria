@@ -34,7 +34,14 @@ module.exports = {
     const fetchedMessages = await channel.messages.fetch({ limit: 100 });
     const transcript = fetchedMessages
       .reverse()
-      .map(msg => `[${new Date(msg.createdTimestamp).toLocaleString('fr-FR')}] ${msg.author.tag}: ${msg.content}`)
+      .map(msg => {
+        // Les messages relayés (MP) sont des embeds : on en extrait l'auteur et le texte.
+        const embed = msg.embeds?.[0];
+        const isRelay = msg.author.bot && embed?.author?.name && embed.description;
+        const author = isRelay ? embed.author.name : msg.author.tag;
+        const text = isRelay ? embed.description : msg.content;
+        return `[${new Date(msg.createdTimestamp).toLocaleString('fr-FR')}] ${author}: ${text}`;
+      })
       .join('\n');
 
     try {

@@ -1,28 +1,28 @@
 // ─── IDs des rôles staff (utilisés pour les vérifications de permissions) ─────
 const ROLE_IDS = {
-  OWNEUSE:        '1518290149220290680',
-  CO_OWNEUR:      '1518290096082915328',
-  SUPERVISEUR:    '1519691553314967693',
-  ADMINISTRATEUR: '1519095538912465067',
-  GERANT_STAFF:   '1519461712313581748',
-  RESPONSABLE:    '1519461680986456285',
-  DJ1:            '1521186380057804853',
+  EA:   '1518290149220290680',
+  GD:   '1518290096082915328',
+  PF:   '1519691553314967693',
+  AR:   '1519095538912465067',
+  CG:   '1519461712313581748',
+  SB:   '1519461680986456285',
+  DJ1:   '1521186380057804853',
 };
 
 // Bypass développeur déjà utilisé sur les autres commandes du bot
-const DEVELOPER_ID = '569409070440906783';
+const DEVELOPER_ID = '1519406500571775230';
 
 // Rôles autorisés à utiliser /modremove
 const MODREMOVE_ROLES = [
-  ROLE_IDS.OWNEUSE,
-  ROLE_IDS.CO_OWNEUR,
-  ROLE_IDS.SUPERVISEUR,
-  ROLE_IDS.ADMINISTRATEUR,
-  ROLE_IDS.GERANT_STAFF,
-  ROLE_IDS.RESPONSABLE,
+  ROLE_IDS.EA,
+  ROLE_IDS.GD,
+  ROLE_IDS.PF,
+  ROLE_IDS.AR,
+  ROLE_IDS.CG,
+  ROLE_IDS.SB,
 ];
 
-// Rôles autorisés à utiliser /changelogs (= modremove + DJ1)
+// Rôles autorisés à utiliser /reason (= modremove + DJ1)
 const CHANGELOGS_ROLES = [
   ...MODREMOVE_ROLES,
   ROLE_IDS.DJ1,
@@ -30,11 +30,9 @@ const CHANGELOGS_ROLES = [
 
 // Rôles autorisés à utiliser /clearlogs
 const CLEARLOGS_ROLES = [
-  ROLE_IDS.OWNEUSE,
-  ROLE_IDS.CO_OWNEUR,
-  ROLE_IDS.SUPERVISEUR,
-  ROLE_IDS.ADMINISTRATEUR,
-  ROLE_IDS.GERANT_STAFF,
+  ROLE_IDS.EA,
+  ROLE_IDS.GD,
+  ROLE_IDS.PF,
 ];
 
 // Rôles autorisés à utiliser /giveaway et /drop (= mêmes rôles que /modremove ; à ajuster)

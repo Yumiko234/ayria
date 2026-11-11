@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, Collection, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { REST }         = require('@discordjs/rest');
 const { Routes }       = require('discord-api-types/v10');
 const { createClient } = require('@supabase/supabase-js');
@@ -49,7 +49,9 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.DirectMessages, // 📩 tickets par MP
   ],
+  partials: [Partials.Channel, Partials.Message], // 📩 requis pour recevoir les MP (salons DM non mis en cache)
 });
 
 client.commands = new Collection();
