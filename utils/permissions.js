@@ -12,6 +12,22 @@ const ROLE_IDS = {
 // Bypass développeur déjà utilisé sur les autres commandes du bot
 const DEVELOPER_ID = '1519406500571775230';
 
+
+// Direction du serveur
+const DIRECTOR_ROLES = [
+  ROLE_IDS.EA,
+  ROLE_IDS.GD,
+  ROLE_IDS.PF,
+];
+
+// Administration du serveur
+const ADMIN_ROLES = [
+  ...DIRECTOR_ROLES,
+  ROLE_IDS.AR,
+  ROLE_IDS.CG,
+  ROLE_IDS.SB,
+];
+
 // Rôles autorisés à utiliser /modremove
 const MODREMOVE_ROLES = [
   ROLE_IDS.EA,
@@ -52,6 +68,8 @@ function hasAnyRole(member, roleIds) {
 
 module.exports = {
   ROLE_IDS,
+  DIRECTOR_ROLES,
+  ADMIN_ROLES,
   DEVELOPER_ID,
   MODREMOVE_ROLES,
   CHANGELOGS_ROLES,
